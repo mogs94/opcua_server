@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
+import javax.print.attribute.standard.PrinterMoreInfoManufacturer;
+
 import org.eclipse.milo.examples.server.methods.GenerateEventMethod;
 import org.eclipse.milo.examples.server.methods.SqrtMethod;
 import org.eclipse.milo.examples.server.types.CustomEnumType;
@@ -40,6 +42,7 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectTypeNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.delegates.GetSetObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.factories.NodeFactory;
 import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
 import org.eclipse.milo.opcua.sdk.server.util.SubscriptionModel;
@@ -167,6 +170,29 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
             }
         });
     }
+    
+    
+    private void addToObjectsFolder() {
+
+        UaObjectNode deviceSet = new UaObjectNode(getNodeContext(),
+            new NodeId(2, "DeviceSet"),
+            new QualifiedName(2, "DeviceSet"),
+            new LocalizedText("DeviceSet")
+            );
+        
+        getNodeManager().addNode(deviceSet);
+        deviceSet.addReference(new Reference(Identifiers.ObjectsFolder,
+            Identifiers.Organizes,
+            deviceSet.getNodeId().expanded(),
+            true
+            ));
+        
+        addCustomObjectTypeAndInstance(deviceSet);
+    }
+    
+    
+    
+    
 
     private void createAndAddNodes() {
         // Create a "HelloWorld" folder and add it to the node manager
@@ -188,6 +214,27 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
             Identifiers.ObjectsFolder.expanded(),
             false
         ));
+        
+        UaVariableNode macAdress = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                .setNodeId(newNodeId(3))
+                .setAccessLevel(AccessLevel.READ_WRITE)
+                .setUserAccessLevel(AccessLevel.READ_WRITE)
+                .setBrowseName(newQualifiedName("G703-FL59-LKF9-LFH3"))
+                .setDisplayName(LocalizedText.english("MAC-Adresse"))
+                .setDataType(Identifiers.String)
+                .setTypeDefinition(Identifiers.PropertyType)
+                .build();
+        
+        macAdress.addReference(new Reference(
+            folderNode.getNodeId(),
+            Identifiers.HasProperty,
+            macAdress.getNodeId().expanded(),
+            true
+            ));
+        
+        macAdress.setValue(new DataValue(new Variant("Das ist eine MAC-Adresse")));
+        getNodeManager().addNode(macAdress);
+        
 
         // Add the rest of the nodes
         addVariableNodes(folderNode);
@@ -196,6 +243,8 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
 
         addGenerateEventMethod(folderNode);
 
+        addToObjectsFolder();
+        
         try {
             registerCustomEnumType();
             addCustomEnumTypeVariable(folderNode);
@@ -217,7 +266,6 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
             logger.warn("Failed to register custom struct type", e);
         }
 
-        addCustomObjectTypeAndInstance(folderNode);
     }
 
     private void startBogusEventNotifier() {
@@ -678,95 +726,268 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
         ));
     }
 
-    private void addCustomObjectTypeAndInstance(UaFolderNode rootFolder) {
+    private void addCustomObjectTypeAndInstance(UaObjectNode rootObjectNode) {
         // Define a new ObjectType called "MyObjectType".
-        UaObjectTypeNode objectTypeNode = UaObjectTypeNode.builder(getNodeContext())
+        UaObjectTypeNode objectTypeNodeSimaticDeviceType = UaObjectTypeNode.builder(getNodeContext())
             .setNodeId(newNodeId("ObjectTypes/MyObjectType"))
-            .setBrowseName(newQualifiedName("MyObjectType"))
-            .setDisplayName(LocalizedText.english("MyObjectType"))
+            .setBrowseName(newQualifiedName("SimaticDeviceType"))
+            .setDisplayName(LocalizedText.english("SimaticDeviceType"))
             .setIsAbstract(false)
             .build();
 
         // "Foo" and "Bar" are members. These nodes are what are called "instance declarations" by the spec.
-        UaVariableNode foo = UaVariableNode.builder(getNodeContext())
-            .setNodeId(newNodeId("ObjectTypes/MyObjectType.Foo"))
-            .setAccessLevel(AccessLevel.READ_WRITE)
-            .setBrowseName(newQualifiedName("Foo"))
-            .setDisplayName(LocalizedText.english("Foo"))
-            .setDataType(Identifiers.Int16)
-            .setTypeDefinition(Identifiers.BaseDataVariableType)
-            .build();
-
-        foo.addReference(new Reference(
-            foo.getNodeId(),
-            Identifiers.HasModellingRule,
-            Identifiers.ModellingRule_Mandatory.expanded(),
-            true
-        ));
-
-        foo.setValue(new DataValue(new Variant(0)));
-        objectTypeNode.addComponent(foo);
-
-        UaVariableNode bar = UaVariableNode.builder(getNodeContext())
-            .setNodeId(newNodeId("ObjectTypes/MyObjectType.Bar"))
-            .setAccessLevel(AccessLevel.READ_WRITE)
-            .setBrowseName(newQualifiedName("Bar"))
-            .setDisplayName(LocalizedText.english("Bar"))
-            .setDataType(Identifiers.String)
-            .setTypeDefinition(Identifiers.BaseDataVariableType)
-            .build();
-
-        bar.addReference(new Reference(
-            bar.getNodeId(),
-            Identifiers.HasModellingRule,
-            Identifiers.ModellingRule_Mandatory.expanded(),
-            true
-        ));
-
-        bar.setValue(new DataValue(new Variant("bar")));
-        objectTypeNode.addComponent(bar);
 
         // Tell the ObjectTypeManager about our new type.
         // This let's us use NodeFactory to instantiate instances of the type.
         getServer().getObjectTypeManager().registerObjectType(
-            objectTypeNode.getNodeId(),
+            objectTypeNodeSimaticDeviceType.getNodeId(),
             UaObjectNode.class,
             UaObjectNode::new
         );
 
         // Add the inverse SubtypeOf relationship.
-        objectTypeNode.addReference(new Reference(
-            objectTypeNode.getNodeId(),
-            Identifiers.HasSubtype,
+        objectTypeNodeSimaticDeviceType.addReference(new Reference(
+            objectTypeNodeSimaticDeviceType.getNodeId(),
+            Identifiers.HasProperty,
             Identifiers.BaseObjectType.expanded(),
             false
         ));
 
+        
+        
         // Add type definition and declarations to address space.
-        getNodeManager().addNode(objectTypeNode);
-        getNodeManager().addNode(foo);
-        getNodeManager().addNode(bar);
+        getNodeManager().addNode(objectTypeNodeSimaticDeviceType);
 
+        
         // Use NodeFactory to create instance of MyObjectType called "MyObject".
         // NodeFactory takes care of recursively instantiating MyObject member nodes
         // as well as adding all nodes to the address space.
         try {
             UaObjectNode myObject = (UaObjectNode) getNodeFactory().createNode(
                 newNodeId("HelloWorld/MyObject"),
-                objectTypeNode.getNodeId()
+                objectTypeNodeSimaticDeviceType.getNodeId()
             );
-            myObject.setBrowseName(newQualifiedName("MyObject"));
-            myObject.setDisplayName(LocalizedText.english("MyObject"));
+            myObject.setBrowseName(newQualifiedName("FU11-0501-SK1-CPU-202"));
+            myObject.setDisplayName(LocalizedText.english("FU11-0501-SK1-CPU-202"));
 
             // Add forward and inverse references from the root folder.
-            rootFolder.addOrganizes(myObject);
+            
+            rootObjectNode.addReference(new Reference(
+                rootObjectNode.getNodeId(),
+                Identifiers.HasComponent,
+                myObject.getNodeId().expanded(),
+                true
+                ));
+            
+            UaVariableNode deviceManual = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(3))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("G703-FL59-LKF9-LFH3"))
+                    .setDisplayName(LocalizedText.english("DeviceManual"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
 
-            myObject.addReference(new Reference(
+            deviceManual.addReference(new Reference(
                 myObject.getNodeId(),
-                Identifiers.Organizes,
-                rootFolder.getNodeId().expanded(),
-                false
+                Identifiers.HasProperty,
+                deviceManual.getNodeId().expanded(),
+                true
             ));
+
+            deviceManual.setValue(new DataValue(new Variant("HierIstEinLinkZueinerManual")));
+            getNodeManager().addNode(deviceManual);
+            
+            
+            UaVariableNode deviceRevision = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(4))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("DeviceRevision"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            deviceRevision.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                deviceRevision.getNodeId().expanded(),
+                true
+            ));
+
+            deviceRevision.setValue(new DataValue(new Variant("HierIsteinDeviceRevisionZusehen")));
+            getNodeManager().addNode(deviceRevision);
+            
+            
+            UaVariableNode engineeringRevision = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(5))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("EngineeringRevisionn"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            engineeringRevision.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                engineeringRevision.getNodeId().expanded(),
+                true
+            ));
+
+            engineeringRevision.setValue(new DataValue(new Variant("HierIsteinEngineeringRevisionZusehen")));
+            getNodeManager().addNode(engineeringRevision);
+            
+            
+            UaVariableNode hardwarerevision = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(6))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("HardwareRevision"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            hardwarerevision.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                hardwarerevision.getNodeId().expanded(),
+                true
+            ));
+
+            hardwarerevision.setValue(new DataValue(new Variant("HierIsteinEngineeringRevisionZusehen")));
+            getNodeManager().addNode(hardwarerevision);
+            
+            UaVariableNode manufacturer = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(7))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("Manufaturer"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            manufacturer.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                manufacturer.getNodeId().expanded(),
+                true
+            ));
+
+            manufacturer.setValue(new DataValue(new Variant("SiemensAG")));
+            getNodeManager().addNode(manufacturer);
+            
+            
+            hardwarerevision.setValue(new DataValue(new Variant("HierIsteinEngineeringRevisionZusehen")));
+            getNodeManager().addNode(hardwarerevision);
+            
+            UaVariableNode model = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(8))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("Manufaturer"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            model.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                model.getNodeId().expanded(),
+                true
+            ));
+
+            model.setValue(new DataValue(new Variant("1518")));
+            getNodeManager().addNode(model);
+             
+            UaVariableNode operatingMode = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(9))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("OperatingMode"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            operatingMode.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                operatingMode.getNodeId().expanded(),
+                true
+            ));
+
+            operatingMode.setValue(new DataValue(new Variant("OperatingModellol")));
+            getNodeManager().addNode(operatingMode);
+            
+            
+            UaVariableNode orderNumber = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(10))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("OrderNumber"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            orderNumber.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                orderNumber.getNodeId().expanded(),
+                true
+            ));
+
+            orderNumber.setValue(new DataValue(new Variant("OrderNumber")));
+            getNodeManager().addNode(orderNumber);
+            
+            UaVariableNode revisionNumber = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(11))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("RevisionNumber"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            revisionNumber.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                revisionNumber.getNodeId().expanded(),
+                true
+            ));
+
+            revisionNumber.setValue(new DataValue(new Variant("OrderNumber")));
+            getNodeManager().addNode(revisionNumber);
+            
+            UaVariableNode serialNumber = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+                    .setNodeId(newNodeId(12))
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setBrowseName(newQualifiedName("D"))
+                    .setDisplayName(LocalizedText.english("RevisionNumber"))
+                    .setDataType(Identifiers.String)
+                    .setTypeDefinition(Identifiers.PropertyType)
+                    .build();
+
+            serialNumber.addReference(new Reference(
+                myObject.getNodeId(),
+                Identifiers.HasProperty,
+                serialNumber.getNodeId().expanded(),
+                true
+            ));
+
+            serialNumber.setValue(new DataValue(new Variant("OrderNumber")));
+            getNodeManager().addNode(serialNumber);
+            
+            
         } catch (UaException e) {
             logger.error("Error creating MyObjectType instance: {}", e.getMessage(), e);
         }
