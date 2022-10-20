@@ -279,6 +279,7 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
         addDynamicNodes(rootNode);
         addDataAccessNodes(rootNode);
         addWriteOnlyNodes(rootNode);
+        addVariablesNodes(rootNode);
     }
 
     private void addArrayNodes(UaFolderNode rootNode) {
@@ -361,6 +362,37 @@ public class ExampleNamespace extends ManagedNamespaceWithLifecycle {
             getNodeManager().addNode(node);
             scalarTypesFolder.addOrganizes(node);
         }
+    }
+    
+    
+    
+    
+    private void addVariablesNodes(UaFolderNode rootNode) {
+        UaFolderNode myOwnFolder = new UaFolderNode(
+            getNodeContext(),
+            newNodeId("EigenerOrdner"),
+            newQualifiedName("EigenerordnerQualifiedName"),
+            LocalizedText.english("OwnFolder")
+        );
+
+        getNodeManager().addNode(myOwnFolder);
+        rootNode.addOrganizes(myOwnFolder);
+        String name = "BoolscheVariable";
+            
+        UaVariableNode ownNode = new UaVariableNode.UaVariableNodeBuilder(getNodeContext())
+            .setNodeId(newNodeId(name))
+            .setAccessLevel(AccessLevel.READ_WRITE)
+            .setUserAccessLevel(AccessLevel.READ_WRITE)
+            .setBrowseName(newQualifiedName(name))
+            .setDisplayName(LocalizedText.english(name))
+            .setDataType(Identifiers.Boolean)
+            .setTypeDefinition(Identifiers.BaseDataVariableType)
+            .build();
+
+        ownNode.setValue(new DataValue(new Variant(true)));
+
+        getNodeManager().addNode(ownNode);
+        myOwnFolder.addOrganizes(ownNode);
     }
 
     private void addWriteOnlyNodes(UaFolderNode rootNode) {
